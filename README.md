@@ -53,7 +53,7 @@ pip install -r requirements.txt
 #### All the below steps should be run on different terminals
 
 - Step 1 : Run the producer
-  - The producer will send messages to a redis stream "stream:producer" every 5 seconds.
+  - The producer will send messages to a redis stream "stream:producer" every 1 second.
   - ```
     python maintain-order/producer.py
     ```
@@ -82,4 +82,13 @@ pip install -r requirements.txt
     ```
   - You will notice that now, before starting to consume the messages where Consumer 1 left off, Consumer 2 will first follow all the above steps and make sure the messages are processed in order
   - **If you try to start Consumer 1 again, you will get a message saying that there is a existing active consumer on the stream.**
+
+
+#### How PELs work
+
+In the file consumer-1.py
+
+- Comment out the line `r.xack(STREAM_NAME, CONSUMER_GROUP, message_id)`
+- This will make sure that consumer-1 will consume the messages but will not acknowledge them, thus building up the PEL
+- Now, Follow the above steps and you will find that Consumer 2 will start **consumption from the beginning since it will claim all the PELs and process them one by one.**
   

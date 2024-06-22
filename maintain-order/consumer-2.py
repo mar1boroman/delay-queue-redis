@@ -19,23 +19,28 @@ def process_message(message):
 
 
 def override_existing_consumers(STREAM_NAME, CONSUMER_GROUP):
+    claimed_messages = None
     old_consumer = r.xinfo_consumers(STREAM_NAME, CONSUMER_GROUP)
     if old_consumer:
+        
         old_consumer = old_consumer[0]
-        print(f"Consumers active : {old_consumer}")
-
+        print(f"Active Consumer : {old_consumer}")
+        
+        
         if old_consumer["idle"] > IDLE_TIME:
             print(
                 f"Attempting Autoclaim since consumer {old_consumer['name']} is idle for {old_consumer['idle']} ms..."
             )
-            r.xautoclaim(
+            _, claimed_messages, _ = r.xautoclaim(
                 name=STREAM_NAME,
                 groupname=CONSUMER_GROUP,
                 consumername=CONSUMER_NAME,
                 min_idle_time=IDLE_TIME,
+                start_id="0-0",
             )
-
+            
             while True:
+                # Making sure all pending entries are transferred
                 pel = old_consumer["pending"]
                 print(f"Pending entries : {pel}")
                 if pel == 0:
@@ -51,13 +56,14 @@ def override_existing_consumers(STREAM_NAME, CONSUMER_GROUP):
                         for c in r.xinfo_consumers(STREAM_NAME, CONSUMER_GROUP)
                         if c["name"] == old_consumer["name"]
                     ][0]
+
             print(
-                f"Active consumers : {r.xinfo_consumers(STREAM_NAME, CONSUMER_GROUP)}"
+                f"Active Consumer : {r.xinfo_consumers(STREAM_NAME, CONSUMER_GROUP)}"
             )
         else:
-            return False
+            return claimed_messages, False
 
-    return True
+    return claimed_messages, True
 
 
 def main():
@@ -65,14 +71,26 @@ def main():
     if CONSUMER_GROUP not in [x["name"] for x in r.xinfo_groups(STREAM_NAME)]:
         r.xgroup_create(STREAM_NAME, CONSUMER_GROUP, id="0", mkstream=True)
 
-    if override_existing_consumers(STREAM_NAME, CONSUMER_GROUP):
+    claimed_messages, override_flag = override_existing_consumers(
+        STREAM_NAME, CONSUMER_GROUP
+    )
+
+    if override_flag:
+
+        if claimed_messages:
+            # Process the pending messages
+            for message_id, message in claimed_messages:
+                print(f"Processing the id : {message_id} from PEL")
+                process_message(message)
+                r.xack(STREAM_NAME, CONSUMER_GROUP, message_id)
+
+        # Process the new messages
         while True:
             msg = r.xreadgroup(
                 groupname=CONSUMER_GROUP,
                 consumername=CONSUMER_NAME,
                 streams={STREAM_NAME: ">"},
                 count=1,
-                block=1000,
             )
             if msg:
                 stream, messages = msg[0]

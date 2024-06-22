@@ -15,7 +15,7 @@ def main():
         message = f"msg:{i}"
         print(f"Added {message} to the stream")
         r.xadd(name=STREAM_NAME, fields={"msg": message})
-        time.sleep(5)
+        time.sleep(1)
         i += 1
 
 
