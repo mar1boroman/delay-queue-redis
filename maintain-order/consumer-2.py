@@ -78,6 +78,7 @@ def main():
                 stream, messages = msg[0]
                 for message_id, message in messages:
                     process_message(message)
+                    r.xack(STREAM_NAME, CONSUMER_GROUP, message_id)
     else:
         print(
             f"There are existing consumers on the consumer group {CONSUMER_GROUP} for the stream {STREAM_NAME}"
